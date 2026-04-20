@@ -1,0 +1,381 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  CUSTOMER
+  VENDOR
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FULFILLED
+  CANCELLED
+  REFUNDED
+}
+
+enum BookingStatus {
+  REQUESTED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum LogisticsStatus {
+  REQUESTED
+  PICKED_UP
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  REMOTE
+}
+
+model User {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  name          String?
+  email         String?  @unique
+  phone         String?  @unique
+  emailVerified DateTime?
+  image         String?
+
+  passwordHash  String?
+  role          UserRole @default(CUSTOMER)
+
+  // Marketplace relations
+  products      Product[]
+  services      Service[]
+
+  cart          Cart?
+  orders        Order[]
+  bookings      Booking[]
+  reviews       Review[]
+  logisticsRequests LogisticsRequest[]
+  wishlistItems WishlistItem[]
+
+  employerJobs  Job[]            @relation("EmployerJobs")
+  applications  Application[]
+
+  notifications Notification[]
+
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  vendorId    String
+  vendor      User     @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String
+  priceGHS    Int
+  currency    String   @default("GHS")
+  category    String
+  images      String[]
+  ratingAvg   Float    @default(0)
+  ratingCount Int      @default(0)
+  isActive    Boolean  @default(true)
+
+  reviews     Review[]
+  orderItems  OrderItem[]
+  cartItems   CartItem[]
+  wishlistItems WishlistItem[]
+
+  @@index([category])
+  @@index([vendorId])
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+}
+
+model Service {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  vendorId    String
+  vendor      User     @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String
+  priceGHS    Int
+  currency    String   @default("GHS")
+  category    String
+  images      String[]
+  location    String?
+  isActive    Boolean  @default(true)
+
+  ratingAvg   Float    @default(0)
+  ratingCount Int      @default(0)
+
+  bookings    Booking[]
+  reviews     Review[]
+
+  @@index([category])
+  @@index([vendorId])
+}
+
+model Cart {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items     CartItem[]
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  quantity  Int      @default(1)
+
+  @@unique([cartId, productId])
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status        OrderStatus @default(PENDING)
+  subtotalGHS   Int
+  deliveryGHS   Int         @default(0)
+  totalGHS      Int
+  currency      String      @default("GHS")
+
+  addressLine1  String
+  addressLine2  String?
+  city          String
+  region        String?
+  phone         String
+
+  paymentRef    String?     @unique
+  paymentProvider String?   // "paystack" | "momo" etc
+
+  items         OrderItem[]
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  unitPriceGHS Int
+  quantity  Int
+
+  @@index([orderId])
+}
+
+model Booking {
+  id         String        @id @default(cuid())
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  serviceId  String
+  service    Service       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  status     BookingStatus @default(REQUESTED)
+  scheduledAt DateTime
+  notes      String?
+
+  priceGHS   Int
+  currency   String @default("GHS")
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  productId  String?
+  product    Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  serviceId  String?
+  service    Service? @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  rating     Int
+  comment    String?
+
+  @@index([productId])
+  @@index([serviceId])
+  @@index([userId])
+}
+
+model LogisticsRequest {
+  id              String          @id @default(cuid())
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  pickupLocation  String
+  deliveryLocation String
+  itemType        String
+  weightKg        Float
+  sizeNote        String?
+  speed           String          // "standard" | "express"
+
+  priceGHS        Int
+  currency        String          @default("GHS")
+
+  status          LogisticsStatus @default(REQUESTED)
+  trackingCode    String          @unique
+}
+
+model Job {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employerId  String
+  employer    User     @relation("EmployerJobs", fields: [employerId], references: [id], onDelete: Cascade)
+
+  title       String
+  company     String
+  location    String
+  type        JobType
+  description String
+  salaryMinGHS Int?
+  salaryMaxGHS Int?
+  isActive    Boolean  @default(true)
+
+  applications Application[]
+
+  @@index([employerId])
+  @@index([isActive])
+}
+
+model Application {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  jobId       String
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fullName    String
+  email       String
+  phone       String?
+  coverLetter String?
+  cvUrl       String? // placeholder (store a URL if using cloud storage)
+
+  @@unique([jobId, userId])
+  @@index([jobId])
+  @@index([userId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  readAt    DateTime?
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title     String
+  body      String
+  href      String?
+}
+
+// NextAuth (Prisma adapter) models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}

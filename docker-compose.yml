@@ -1,0 +1,17 @@
+services:
+  db:
+    image: postgres:16
+    container_name: mybestie-ghana-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mybestie
+      POSTGRES_PASSWORD: mybestie
+      POSTGRES_DB: mybestie
+    ports:
+      - "5432:5432"
+    volumes:
+      - mybestie-db:/var/lib/postgresql/data
+
+volumes:
+  mybestie-db:
+
